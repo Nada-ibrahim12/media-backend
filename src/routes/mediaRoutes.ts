@@ -33,7 +33,50 @@ router.post(
   }
 );
   
+router.put("/:id", (req: Request, res: Response): void => {
+  const { id } = req.params;
+  const { title, type } = req.body;
 
+  const media = mediaItems.find((m) => m.id === id);
+  if (!media) {
+    res.status(404).json({ message: "Media not found" });
+    return;
+  }
+
+  if (title) media.title = title;
+  if (type && (type === "image" || type === "video")) media.type = type;
+
+  res.json({ message: "Media updated", media });
+});
+
+router.delete("/:id", (req: Request, res: Response): void => {
+  const { id } = req.params;
+
+  const mediaIndex = mediaItems.findIndex((m) => m.id === id);
+  if (mediaIndex === -1) {
+    res.status(404).json({ message: "Media not found" });
+    return;
+  }
+
+  mediaItems.splice(mediaIndex, 1);
+  res.json({ message: "Media deleted successfully" });
+});
+
+router.get("/search", (req: Request, res: Response): void => {
+  const { title } = req.query;
+
+  if (!title || typeof title !== "string") {
+    res.status(400).json({ message: "Missing or invalid search title" });
+    return;
+  }
+
+  const filtered = mediaItems.filter((item) =>
+    item.title.toLowerCase().includes(title.toLowerCase())
+  );
+
+  res.json(filtered);
+});
+  
 router.get("/", (_req, res) => {
   res.json(mediaItems);
 });

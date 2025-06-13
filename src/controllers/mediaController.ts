@@ -20,11 +20,37 @@ export const uploadMedia = (req: Request, res: Response) => {
     likes: 0,
   };
 
-
   mediaItems.push(newMedia);
   res.status(201).json(newMedia);
 };
 
+export const updateMedia = (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { title } = req.body;
+    
+    const media = mediaItems.find((item) => item.id === id);
+    if (!media) {
+        return res.status(404).json({ message: "Media not found." });
+    }
+    
+    if (title) {
+        media.title = title;
+    }
+    
+    res.json(media);
+};
+
+export const deleteMedia = (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const mediaIndex = mediaItems.findIndex((item) => item.id === id);
+  if (mediaIndex === -1) {
+    return res.status(404).json({ message: "Media not found." });
+  }
+
+  mediaItems.splice(mediaIndex, 1);
+  res.json({ message: "Media deleted successfully." });
+}
 export const getAllMedia = (_req: Request, res: Response) => {
   res.json(mediaItems);
 };
