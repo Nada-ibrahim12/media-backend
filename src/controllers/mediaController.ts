@@ -1,80 +1,135 @@
 import { Request, Response } from "express";
-import { mediaItems, Media } from "../models/mediaModel";
-import { v4 as uuidv4 } from "uuid";
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 
-export const uploadMedia = (req: Request, res: Response) => {
-  const file = req.file;
-  const title = req.body.title;
-  const type = file?.mimetype.startsWith("video") ? "video" : "image";
+export const uploadMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { title, type } = req.body;
 
-  if (!file || !title) {
-    return res.status(400).json({ message: "Title and file are required." });
+  if (!req.file) {
+    res.status(400).json({ message: "No file uploaded." });
+    return;
   }
 
-  const newMedia: Media = {
-    id: uuidv4(),
-    title,
-    url: `/uploads/${file.filename}`,
-    type,
-    likes: 0,
-  };
+  const newMedia = await prisma.media.create({
+    data: {
+      title,
+      type,
+      fileUrl: req.file.path,
+    },
+  });
 
-  mediaItems.push(newMedia);
   res.status(201).json(newMedia);
 };
 
-export const updateMedia = (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { title } = req.body;
-    
-    const media = mediaItems.find((item) => item.id === id);
-    if (!media) {
-        return res.status(404).json({ message: "Media not found." });
-    }
-    
-    if (title) {
-        media.title = title;
-    }
-    
-    res.json(media);
-};
 
-export const deleteMedia = (req: Request, res: Response) => {
+export const updateMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { id } = req.params;
+  const { title, type } = req.body;
 
-  const mediaIndex = mediaItems.findIndex((item) => item.id === id);
-  if (mediaIndex === -1) {
-    return res.status(404).json({ message: "Media not found." });
-  }
-
-  mediaItems.splice(mediaIndex, 1);
-  res.json({ message: "Media deleted successfully." });
-}
-export const getAllMedia = (_req: Request, res: Response) => {
-  res.json(mediaItems);
-};
-
-export const toggleLike = (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  const media = mediaItems.find((item) => item.id === id);
+  const media = await prisma.media.findUnique({ where: { id } });
   if (!media) {
-    return res.status(404).json({ message: "Media not found." });
+    res.status(404).json({ message: "Media not found" });
+    return;
   }
 
-  media.likes++;
-  res.json({ message: "Liked!", likes: media.likes });
+  const updated = await prisma.media.update({
+    where: { id },
+    data: {
+      title: title ?? media.title,
+      type: type === "image" || type === "video" ? type : media.type,
+    },
+  });
+
+  res.json({ message: "Media updated", media: updated });
 };
 
-export const toggleUnlike = (req: Request, res: Response) => {
+export const deleteMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const { id } = req.params;
 
-  const media = mediaItems.find((item) => item.id === id);
+  const media = await prisma.media.findUnique({ where: { id } });
   if (!media) {
-    return res.status(404).json({ message: "Media not found." });
+    res.status(404).json({ message: "Media not found" });
+    return;
   }
 
-  media.likes = Math.max(0, media.likes - 1);
-  res.json({ message: "Unliked!", likes: media.likes });
+  await prisma.media.delete({ where: { id } });
+  res.json({ message: "Media deleted successfully" });
+};
+
+export const searchMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { title } = req.query;
+
+  if (!title || typeof title !== "string") {
+    res.status(400).json({ message: "Missing or invalid search title" });
+    return;
+  }
+
+  const filtered = await prisma.media.findMany({
+    where: {
+      title: {
+        contains: title.toString(),
+      },
+    },
+  });
+
+  res.json(filtered);
+};
+
+
+export const listMedia = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  const media = await prisma.media.findMany();
+  res.json(media);
+};
+
+export const likeMedia = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const media = await prisma.media.findUnique({ where: { id } });
+  if (!media) {
+    res.status(404).json({ message: "Media not found" });
+    return;
+  }
+
+  const updated = await prisma.media.update({
+    where: { id },
+    data: { likes: media.likes + 1 },
+  });
+
+  res.json({ message: "Liked", likes: updated.likes });
+};
+
+export const unlikeMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+
+  const media = await prisma.media.findUnique({ where: { id } });
+  if (!media) {
+    res.status(404).json({ message: "Media not found" });
+    return;
+  }
+
+  const updated = await prisma.media.update({
+    where: { id },
+    data: { likes: Math.max(media.likes - 1, 0) },
+  });
+
+  res.json({ message: "Unliked", likes: updated.likes });
 };
