@@ -2,7 +2,7 @@ import express from "express";
 import mediaRoutes from "./routes/mediaRoutes";
 import path from "path";
 import fs from "fs";
-
+import authRoutes from "./routes/authRoutes";
 
 const app = express();
 const port = 3000;
@@ -21,6 +21,7 @@ app.use("/api", mediaRoutes);
 
 app.use("/media", mediaRoutes);
 
+app.use("/auth", authRoutes);
 
 app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);

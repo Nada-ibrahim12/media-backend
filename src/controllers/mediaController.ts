@@ -1,10 +1,15 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import { verifyToken } from "../middleware/verifyToken";
 
 const prisma = new PrismaClient();
 
+interface AuthRequest extends Request {
+  userId?: string;
+}
+
 export const uploadMedia = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   const { title, type } = req.body;
@@ -13,12 +18,17 @@ export const uploadMedia = async (
     res.status(400).json({ message: "No file uploaded." });
     return;
   }
+  if (!req.userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
 
   const newMedia = await prisma.media.create({
     data: {
       title,
       type,
-      fileUrl: req.file.path,
+      fileUrl: (req.file as any).path,
+      userId: req.userId,
     },
   });
 
