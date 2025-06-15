@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "default_secret";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const { email, password, firstName, lastName } = req.body;
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -19,6 +19,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   const newUser = await prisma.user.create({
     data: {
+      firstName,
+      lastName,
       email,
       password: hashedPassword,
     },
@@ -51,4 +53,40 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   });
 
   res.json({ token, userId: user.id });
+};
+export const logout = (req: Request, res: Response): void => {
+  res.status(200).json({ message: "Logged out successfully" });
+};
+
+interface AuthRequest extends Request {
+  userId?: string;
+}
+
+export const getUserDetails = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  const userId = req.userId;
+
+  if (!userId) {
+    res.status(400).json({ message: "User ID is required" });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  });
+
+  if (!user) {
+    res.status(404).json({ message: "User not found" });
+    return;
+  }
+
+  res.status(200).json(user);
 };

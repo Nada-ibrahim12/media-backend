@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "../middleware/verifyToken";
 
 const prisma = new PrismaClient();
+console.log(Object.keys(prisma));
 
 interface AuthRequest extends Request {
   userId?: string;
@@ -12,29 +13,33 @@ export const uploadMedia = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
-  const { title, type } = req.body;
+  try {
+    const { title, type } = req.body;
 
-  if (!req.file) {
-    res.status(400).json({ message: "No file uploaded." });
-    return;
+    if (!req.file) {
+      res.status(400).json({ message: "No file uploaded." });
+      return;
+    }
+    if (!req.userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const newMedia = await prisma.media.create({
+      data: {
+        title,
+        type,
+        fileUrl: req.file.path,
+        userId: req.userId,
+      },
+    });
+
+    res.status(201).json(newMedia);
+  } catch (error) {
+    console.error("UploadMedia error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
-  if (!req.userId) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  const newMedia = await prisma.media.create({
-    data: {
-      title,
-      type,
-      fileUrl: (req.file as any).path,
-      userId: req.userId,
-    },
-  });
-
-  res.status(201).json(newMedia);
 };
-
 
 export const updateMedia = async (
   req: Request,
@@ -72,6 +77,10 @@ export const deleteMedia = async (
     return;
   }
 
+  await prisma.like.deleteMany({
+    where: { mediaId: id }
+  });
+
   await prisma.media.delete({ where: { id } });
   res.json({ message: "Media deleted successfully" });
 };
@@ -98,17 +107,32 @@ export const searchMedia = async (
   res.json(filtered);
 };
 
-
 export const listMedia = async (
   _req: Request,
   res: Response
 ): Promise<void> => {
-  const media = await prisma.media.findMany();
+  const media = await prisma.media.findMany({
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true },
+      },
+    },
+  });
   res.json(media);
 };
 
 export const likeMedia = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const userId = (req as any).userId;
+
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  if (!id) {
+    res.status(400).json({ message: "Media ID is required" });
+    return;
+  }
 
   const media = await prisma.media.findUnique({ where: { id } });
   if (!media) {
@@ -116,12 +140,37 @@ export const likeMedia = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const updated = await prisma.media.update({
-    where: { id },
-    data: { likes: media.likes + 1 },
+  const existingLike = await prisma.like.findUnique({
+    where: {
+      userId_mediaId: {
+        userId,
+        mediaId: id,
+      },
+    },
   });
 
-  res.json({ message: "Liked", likes: updated.likes });
+  if (existingLike) {
+    res.status(400).json({ message: "You have already liked this media" });
+    return;
+  }
+
+  await prisma.like.create({
+    data: {
+      userId,
+      mediaId: id,
+    },
+  });
+
+  const updatedMedia = await prisma.media.update({
+    where: { id },
+    data: {
+      likesCount: {
+        increment: 1,
+      },
+    },
+  });
+
+  res.json({ message: "Liked", likesCount: updatedMedia.likesCount });
 };
 
 export const unlikeMedia = async (
@@ -129,6 +178,16 @@ export const unlikeMedia = async (
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
+  const userId = (req as any).userId;
+
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  if (!id) {
+    res.status(400).json({ message: "Media ID is required" });
+    return;
+  }
 
   const media = await prisma.media.findUnique({ where: { id } });
   if (!media) {
@@ -136,10 +195,68 @@ export const unlikeMedia = async (
     return;
   }
 
-  const updated = await prisma.media.update({
-    where: { id },
-    data: { likes: Math.max(media.likes - 1, 0) },
+  const existingLike = await prisma.like.findUnique({
+    where: {
+      userId_mediaId: {
+        userId,
+        mediaId: id,
+      },
+    },
   });
 
-  res.json({ message: "Unliked", likes: updated.likes });
+  if (!existingLike) {
+    res.status(400).json({ message: "You have not liked this media yet" });
+    return;
+  }
+
+  await prisma.like.delete({
+    where: {
+      userId_mediaId: {
+        userId,
+        mediaId: id,
+      },
+    },
+  });
+
+  const updatedMedia = await prisma.media.update({
+    where: { id },
+    data: {
+      likesCount: {
+        decrement: 1,
+      },
+    },
+  });
+
+  res.json({ message: "Unliked", likesCount: updatedMedia.likesCount });
+};
+
+export const getLikesOfMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Media ID is required" });
+    return;
+  }
+
+  const media = await prisma.media.findUnique({
+    where: { id },
+  });
+
+  if (!media) {
+    res.status(404).json({ message: "Media not found" });
+    return;
+  }
+
+  const likes = await prisma.like.findMany({
+    where: { mediaId: id },
+    select: {
+      userId: true,
+      mediaId: true,
+    },
+  });
+
+  res.json(likes);
 };

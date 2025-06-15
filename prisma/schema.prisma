@@ -14,18 +14,33 @@ datasource db {
 }
 
 model Media {
-  id      String  @id @default(uuid())
-  title   String
-  fileUrl String
-  type    String
-  likes   Int     @default(0)
-  userId  String
-  user    User    @relation(fields: [userId], references: [id])
+  id         String @id @default(uuid())
+  title      String
+  fileUrl    String
+  type       String
+  likesCount Int    @default(0)
+  userId     String
+  user       User   @relation(fields: [userId], references: [id])
+  likedBy Like[] @relation("MediaLikes") 
 }
 
 model User {
-  id       String   @id @default(uuid())
-  email    String   @unique
-  password String
-  media    Media[]  
+  id        String  @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String  @unique
+  password  String
+  media     Media[]
+  likes Like[] @relation("UserLikes") 
+}
+
+model Like {
+  id      String @id @default(uuid())
+  userId  String
+  mediaId String
+
+  user  User  @relation(fields: [userId], references: [id], name: "UserLikes")
+  media Media @relation(fields: [mediaId], references: [id], name: "MediaLikes")
+
+  @@unique([userId, mediaId])
 }
