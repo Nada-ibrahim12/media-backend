@@ -4,11 +4,11 @@ import path from "path";
 import fs from "fs";
 import authRoutes from "./routes/authRoutes";
 import cors from "cors";
+import dotenv from "dotenv";
 
-require("dotenv").config();
-
+dotenv.config();
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -35,6 +35,10 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
+app.get("/", (req, res) => {
+  res.send("Backend is working!");
+});
+
 app.use("/uploads", express.static(uploadDir));
 
 app.use("/api", mediaRoutes);
@@ -43,6 +47,6 @@ app.use("/media", mediaRoutes);
 
 app.use("/auth", authRoutes);
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
