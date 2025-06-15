@@ -13,20 +13,14 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://media-react-deploy-borf.vercel.app",
-];
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "https://media-react-deploy-borf.vercel.app",
+// ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        return callback(new Error("CORS policy violation"), false);
-      }
-      return callback(null, true);
-    },
+    origin: "*",
     credentials: true,
   })
 );
